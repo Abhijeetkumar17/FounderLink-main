@@ -26,23 +26,25 @@ const authSlice = createSlice({
   reducers: {
     setCredentials: (
       state,
-      action: PayloadAction<{ token: string; userId: string | number; role: string; email: string; name?: string }>
+      action: PayloadAction<{ token: string; refreshToken?: string; userId: string | number; role: string; email: string; name?: string }>
     ) => {
-      const { token, userId, role, email, name } = action.payload;
+      const { token, refreshToken, userId, role, email, name } = action.payload;
       const normalizedUserId = Number(userId);
       state.token = token;
       state.user = { userId: normalizedUserId, role, email, name };
       state.isAuthenticated = true;
       
       TokenService.setToken(token);
+      if (refreshToken) {
+        TokenService.setRefreshToken(refreshToken);
+      }
       localStorage.setItem('user', JSON.stringify({ userId: normalizedUserId, role, email, name }));
     },
     logout: (state) => {
       state.token = null;
       state.user = null;
       state.isAuthenticated = false;
-      TokenService.removeToken();
-      localStorage.removeItem('user');
+      TokenService.clearAll();
     },
   },
 });

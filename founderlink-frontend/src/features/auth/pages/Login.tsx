@@ -14,8 +14,8 @@ const Login = () => {
   const onSubmit = async (data: any) => {
     try {
       const res = await login(data);
-      const { token, userId, role, email, name } = res.data.data;
-      dispatch(setCredentials({ token, userId, role, email, name }));
+      const { token, refreshToken, userId, role, email, name } = res.data.data;
+      dispatch(setCredentials({ token, refreshToken, userId, role, email, name }));
       toast.success('Welcome back!');
       if (role === 'ROLE_FOUNDER') navigate('/founder/dashboard');
       else if (role === 'ROLE_INVESTOR') navigate('/investor/dashboard');
