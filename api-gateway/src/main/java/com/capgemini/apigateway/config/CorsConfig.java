@@ -22,7 +22,7 @@ public class CorsConfig {
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
-
+        // ci/cd trigger
         return new CorsWebFilter(source);
     }
 }
