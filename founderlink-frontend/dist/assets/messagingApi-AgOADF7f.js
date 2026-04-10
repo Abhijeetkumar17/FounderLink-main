@@ -1,0 +1,1 @@
+import{a as e}from"./axiosConfig-DGsGX0q8.js";const a=s=>e.post("/messages",s),t=s=>e.get(`/messages/conversation/${s}`),n=()=>e.get("/messages/conversations"),r=s=>e.post(`/messages/conversations?otherUserId=${s}`);export{t as a,a as b,n as g,r as s};

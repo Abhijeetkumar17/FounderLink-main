@@ -1,0 +1,1 @@
+import{a}from"./axiosConfig-DGsGX0q8.js";const e=t=>a.post("/teams/invite",t),n=t=>a.post(`/teams/join/${t}`),o=t=>a.put(`/teams/reject/${t}`),i=t=>a.get(`/teams/startup/${t}`),c=()=>a.get("/teams/invitations/my");export{i as a,n as b,c as g,e as i,o as r};

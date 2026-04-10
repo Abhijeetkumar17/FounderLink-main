@@ -1,0 +1,1 @@
+const c=(a=[],s=0)=>{const n=a.filter(t=>t.status==="SUCCESS"||t.status==="AWAITING_APPROVAL"||t.status==="COMPLETED"),e=n.reduce((t,u)=>t+Number(u.amount),0),r=s>0?Math.min(e/s*100,100):0,i=new Set(n.map(t=>t.investorId)).size;return{totalRaised:e,progress:r,uniqueInvestors:i,remaining:Math.max(s-e,0)}};export{c};
