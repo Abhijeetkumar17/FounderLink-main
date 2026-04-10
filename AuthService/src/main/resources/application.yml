@@ -16,6 +16,29 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
+  rabbitmq:
+    host: localhost
+    port: 5672
+    username: guest
+    password: guest
+  mail:
+    host: smtp.gmail.com
+    port: 587
+    username: ${SPRING_MAIL_USERNAME:abhijeetsinha2017@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:bpxd jbqx qqiy yfsr}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+
+rabbitmq:
+  exchange: founderlink.exchange
+
+app:
+  admin:
+    password: ${ADMIN_PASSWORD:Admin@123}
 
 management:
   metrics:
@@ -34,3 +57,8 @@ management:
   zipkin:
     tracing:
       endpoint: http://localhost:9411/api/v2/spans
+
+jwt:
+  secret: 5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437
+  access-token-expiration: 86400000
+  refresh-token-expiration: 604800000

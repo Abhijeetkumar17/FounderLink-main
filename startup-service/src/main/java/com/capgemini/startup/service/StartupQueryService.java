@@ -16,4 +16,5 @@ public interface StartupQueryService {
                                          BigDecimal minFunding, BigDecimal maxFunding,
                                          String location, Pageable pageable);
     List<StartupResponse> getStartupsByFounderId(Long founderId);
+    boolean isInvestorFollowing(Long startupId, Long investorId);
 }

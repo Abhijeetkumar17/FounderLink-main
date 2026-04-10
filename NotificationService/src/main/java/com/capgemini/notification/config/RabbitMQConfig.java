@@ -33,6 +33,21 @@ public class RabbitMQConfig {
     @Value("${rabbitmq.queue.payment-success}")
     private String paymentSuccessQueue;
 
+    @Value("${rabbitmq.queue.payment-failed}")
+    private String paymentFailedQueue;
+
+    @Value("${rabbitmq.queue.user-registered}")
+    private String userRegisteredQueue;
+
+    @Value("${rabbitmq.queue.team-invite-accepted}")
+    private String teamInviteAcceptedQueue;
+
+    @Value("${rabbitmq.queue.team-invite-rejected}")
+    private String teamInviteRejectedQueue;
+
+    @Value("${rabbitmq.queue.startup-approved}")
+    private String startupApprovedQueue;
+
     @Bean
     public TopicExchange founderLinkExchange() {
         return new TopicExchange(exchange);
@@ -69,6 +84,31 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue paymentFailedQueue() {
+        return QueueBuilder.durable(paymentFailedQueue).build();
+    }
+
+    @Bean
+    public Queue userRegisteredQueue() {
+        return QueueBuilder.durable(userRegisteredQueue).build();
+    }
+
+    @Bean
+    public Queue teamInviteAcceptedQueue() {
+        return QueueBuilder.durable(teamInviteAcceptedQueue).build();
+    }
+
+    @Bean
+    public Queue teamInviteRejectedQueue() {
+        return QueueBuilder.durable(teamInviteRejectedQueue).build();
+    }
+
+    @Bean
+    public Queue startupApprovedQueue() {
+        return QueueBuilder.durable(startupApprovedQueue).build();
+    }
+
+    @Bean
     public Binding investmentCreatedBinding() {
         return BindingBuilder.bind(investmentCreatedQueue()).to(founderLinkExchange()).with("investment.created");
     }
@@ -99,14 +139,32 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public MessageConverter messageConverter() {
-        return new Jackson2JsonMessageConverter();
+    public Binding paymentFailedBinding() {
+        return BindingBuilder.bind(paymentFailedQueue()).to(founderLinkExchange()).with("payment.failed");
     }
 
     @Bean
-    public RabbitTemplate rabbitTemplate(ConnectionFactory connectionFactory) {
-        RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
-        rabbitTemplate.setMessageConverter(messageConverter());
-        return rabbitTemplate;
+    public Binding userRegisteredBinding() {
+        return BindingBuilder.bind(userRegisteredQueue()).to(founderLinkExchange()).with("user.registered");
+    }
+
+    @Bean
+    public Binding teamInviteAcceptedBinding() {
+        return BindingBuilder.bind(teamInviteAcceptedQueue()).to(founderLinkExchange()).with("team.invite.accepted");
+    }
+
+    @Bean
+    public Binding teamInviteRejectedBinding() {
+        return BindingBuilder.bind(teamInviteRejectedQueue()).to(founderLinkExchange()).with("team.invite.rejected");
+    }
+
+    @Bean
+    public Binding startupApprovedBinding() {
+        return BindingBuilder.bind(startupApprovedQueue()).to(founderLinkExchange()).with("startup.approved");
+    }
+
+    @Bean
+    public MessageConverter messageConverter() {
+        return new Jackson2JsonMessageConverter();
     }
 }

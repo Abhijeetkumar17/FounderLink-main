@@ -16,6 +16,8 @@ public class RabbitMQConfig {
     public static final String STARTUP_CREATED_ROUTING_KEY = "startup.created";
     public static final String STARTUP_REJECTED_QUEUE = "startup.rejected.queue";
     public static final String STARTUP_REJECTED_ROUTING_KEY = "startup.rejected";
+    public static final String STARTUP_APPROVED_QUEUE = "startup.approved.queue";
+    public static final String STARTUP_APPROVED_ROUTING_KEY = "startup.approved";
 
     @Bean
     public TopicExchange exchange() {
@@ -33,6 +35,11 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue startupApprovedQueue() {
+        return QueueBuilder.durable(STARTUP_APPROVED_QUEUE).build();
+    }
+
+    @Bean
     public Binding startupCreatedBinding(Queue startupCreatedQueue, TopicExchange exchange) {
         return BindingBuilder.bind(startupCreatedQueue).to(exchange).with(STARTUP_CREATED_ROUTING_KEY);
     }
@@ -40,6 +47,11 @@ public class RabbitMQConfig {
     @Bean
     public Binding startupRejectedBinding(Queue startupRejectedQueue, TopicExchange exchange) {
         return BindingBuilder.bind(startupRejectedQueue).to(exchange).with(STARTUP_REJECTED_ROUTING_KEY);
+    }
+
+    @Bean
+    public Binding startupApprovedBinding(Queue startupApprovedQueue, TopicExchange exchange) {
+        return BindingBuilder.bind(startupApprovedQueue).to(exchange).with(STARTUP_APPROVED_ROUTING_KEY);
     }
 
     @Bean

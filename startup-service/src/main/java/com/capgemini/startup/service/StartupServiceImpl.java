@@ -12,14 +12,16 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.capgemini.startup.config.RabbitMQConfig;
+import com.capgemini.startup.dto.StartupApprovedEvent;
 import com.capgemini.startup.dto.StartupCreatedEvent;
+import com.capgemini.startup.mapper.StartupMapper;
 import com.capgemini.startup.dto.StartupRejectedEvent;
 import com.capgemini.startup.dto.StartupRequest;
 import com.capgemini.startup.dto.StartupResponse;
 import com.capgemini.startup.entity.Startup;
 import com.capgemini.startup.entity.StartupFollower;
 import com.capgemini.startup.enums.StartupStage;
-import com.capgemini.startup.exception.DuplicateResourceException;
+
 import com.capgemini.startup.exception.ResourceNotFoundException;
 import com.capgemini.startup.exception.UnauthorizedAccessException;
 import com.capgemini.startup.repository.StartupFollowerRepository;
@@ -37,13 +39,16 @@ public class StartupServiceImpl implements StartupService {
     private final StartupRepository startupRepository;
     private final StartupFollowerRepository startupFollowerRepository;
     private final RabbitTemplate rabbitTemplate;
+    private final StartupMapper startupMapper;
 
     public StartupServiceImpl(StartupRepository startupRepository,
                               StartupFollowerRepository startupFollowerRepository,
-                              RabbitTemplate rabbitTemplate) {
+                              RabbitTemplate rabbitTemplate,
+                              StartupMapper startupMapper) {
         this.startupRepository = startupRepository;
         this.startupFollowerRepository = startupFollowerRepository;
         this.rabbitTemplate = rabbitTemplate;
+        this.startupMapper = startupMapper;
     }
 
     @Override
@@ -82,7 +87,7 @@ public class StartupServiceImpl implements StartupService {
         );
 
         log.info("Startup created: id={}, name={}, founderId={}", saved.getId(), saved.getName(), founderId);
-        return mapToResponse(saved);
+        return startupMapper.toResponse(saved);
     }
 
     @Override
@@ -92,7 +97,7 @@ public class StartupServiceImpl implements StartupService {
         log.info("Fetching startup from DB: id={}", id);
         Startup startup = startupRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Startup not found with ID: " + id));
-        return mapToResponse(startup);
+        return startupMapper.toResponse(startup);
     }
 
     @Override
@@ -116,11 +121,14 @@ public class StartupServiceImpl implements StartupService {
 
         Startup updated = startupRepository.save(startup);
         log.info("Startup updated: id={}", id);
-        return mapToResponse(updated);
+        return startupMapper.toResponse(updated);
     }
 
     @Override
-    @CacheEvict(value = "startups", key = "#id")
+    @Caching(evict = {
+        @CacheEvict(value = "startups", key = "#id"),
+        @CacheEvict(value = "startupsByFounder", allEntries = true)
+    })
     public void deleteStartup(Long id, Long userId, boolean isAdmin) {
         Startup startup = startupRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Startup not found with ID: " + id));
@@ -136,13 +144,13 @@ public class StartupServiceImpl implements StartupService {
     @Override
     @Transactional(readOnly = true)
     public Page<StartupResponse> getAllApprovedStartups(Pageable pageable) {
-        return startupRepository.findByIsApprovedTrue(pageable).map(this::mapToResponse);
+        return startupRepository.findByIsApprovedTrue(pageable).map(startupMapper::toResponse);
     }
 
     @Override
     @Transactional(readOnly = true)
     public Page<StartupResponse> getAllStartups(Pageable pageable) {
-        return startupRepository.findAll(pageable).map(this::mapToResponse);
+        return startupRepository.findAll(pageable).map(startupMapper::toResponse);
     }
 
     @Override
@@ -158,7 +166,7 @@ public class StartupServiceImpl implements StartupService {
         if (maxFunding != null)                      spec = spec.and(StartupSpecification.hasMaxFunding(maxFunding));
         if (location != null && !location.isBlank()) spec = spec.and(StartupSpecification.hasLocation(location));
 
-        return startupRepository.findAll(spec, pageable).map(this::mapToResponse);
+        return startupRepository.findAll(spec, pageable).map(startupMapper::toResponse);
     }
 
     @Override
@@ -167,7 +175,7 @@ public class StartupServiceImpl implements StartupService {
             throw new ResourceNotFoundException("Startup not found with ID: " + startupId);
         }
         if (startupFollowerRepository.existsByStartupIdAndInvestorId(startupId, investorId)) {
-            throw new DuplicateResourceException("Already following this startup");
+            return; // Already following, no-op
         }
         startupFollowerRepository.save(StartupFollower.builder()
                 .startupId(startupId)
@@ -177,7 +185,21 @@ public class StartupServiceImpl implements StartupService {
     }
 
     @Override
-    @CacheEvict(value = "startups", key = "#id")
+    public void unfollowStartup(Long startupId, Long investorId) {
+        if (!startupRepository.existsById(startupId)) {
+            throw new ResourceNotFoundException("Startup not found with ID: " + startupId);
+        }
+        if (startupFollowerRepository.existsByStartupIdAndInvestorId(startupId, investorId)) {
+            startupFollowerRepository.deleteByStartupIdAndInvestorId(startupId, investorId);
+            log.info("Investor {} unfollowed startup {}", investorId, startupId);
+        }
+    }
+
+    @Override
+    @Caching(evict = {
+        @CacheEvict(value = "startups", key = "#id"),
+        @CacheEvict(value = "startupsByFounder", allEntries = true)
+    })
     public StartupResponse approveStartup(Long id) {
         Startup startup = startupRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Startup not found with ID: " + id));
@@ -185,12 +207,27 @@ public class StartupServiceImpl implements StartupService {
         startup.setIsApproved(true);
         startup.setIsRejected(false);
         Startup approved = startupRepository.save(startup);
+
+        StartupApprovedEvent event = StartupApprovedEvent.builder()
+                .startupId(approved.getId())
+                .founderId(approved.getFounderId())
+                .startupName(approved.getName())
+                .build();
+        rabbitTemplate.convertAndSend(
+                RabbitMQConfig.EXCHANGE_NAME,
+                RabbitMQConfig.STARTUP_APPROVED_ROUTING_KEY,
+                event
+        );
+
         log.info("Startup approved: id={}", id);
-        return mapToResponse(approved);
+        return startupMapper.toResponse(approved);
     }
 
     @Override
-    @CacheEvict(value = "startups", key = "#id")
+    @Caching(evict = {
+        @CacheEvict(value = "startups", key = "#id"),
+        @CacheEvict(value = "startupsByFounder", allEntries = true)
+    })
     public StartupResponse rejectStartup(Long id) {
         Startup startup = startupRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Startup not found with ID: " + id));
@@ -211,7 +248,7 @@ public class StartupServiceImpl implements StartupService {
         );
 
         log.info("Startup rejected: id={}", id);
-        return mapToResponse(rejected);
+        return startupMapper.toResponse(rejected);
     }
 
     @Override
@@ -219,26 +256,14 @@ public class StartupServiceImpl implements StartupService {
     @Cacheable(value = "startupsByFounder", key = "#founderId")
     public List<StartupResponse> getStartupsByFounderId(Long founderId) {
         return startupRepository.findByFounderId(founderId).stream()
-                .map(this::mapToResponse)
+                .map(startupMapper::toResponse)
                 .collect(java.util.stream.Collectors.toList());
     }
 
-    private StartupResponse mapToResponse(Startup startup) {
-        return StartupResponse.builder()
-                .id(startup.getId())
-                .name(startup.getName())
-                .description(startup.getDescription())
-                .industry(startup.getIndustry())
-                .problemStatement(startup.getProblemStatement())
-                .solution(startup.getSolution())
-                .fundingGoal(startup.getFundingGoal())
-                .stage(startup.getStage())
-                .location(startup.getLocation())
-                .founderId(startup.getFounderId())
-                .isApproved(startup.getIsApproved())
-                .isRejected(startup.getIsRejected())
-                .createdAt(startup.getCreatedAt())
-                .updatedAt(startup.getUpdatedAt())
-                .build();
+    @Override
+    @Transactional(readOnly = true)
+    public boolean isInvestorFollowing(Long startupId, Long investorId) {
+        return startupFollowerRepository.existsByStartupIdAndInvestorId(startupId, investorId);
     }
+
 }

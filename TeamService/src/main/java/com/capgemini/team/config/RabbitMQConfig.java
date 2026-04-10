@@ -21,6 +21,18 @@ public class RabbitMQConfig {
     @Value("${rabbitmq.routing-key.team-invite-sent}")
     private String teamInviteSentRoutingKey;
 
+    @Value("${rabbitmq.queue.team-invite-accepted}")
+    private String teamInviteAcceptedQueue;
+
+    @Value("${rabbitmq.routing-key.team-invite-accepted}")
+    private String teamInviteAcceptedRoutingKey;
+
+    @Value("${rabbitmq.queue.team-invite-rejected}")
+    private String teamInviteRejectedQueue;
+
+    @Value("${rabbitmq.routing-key.team-invite-rejected}")
+    private String teamInviteRejectedRoutingKey;
+
     @Bean
     public TopicExchange exchange() {
         return new TopicExchange(exchange);
@@ -32,8 +44,28 @@ public class RabbitMQConfig {
     }
 
     @Bean
+    public Queue teamInviteAcceptedQueue() {
+        return new Queue(teamInviteAcceptedQueue, true);
+    }
+
+    @Bean
+    public Queue teamInviteRejectedQueue() {
+        return new Queue(teamInviteRejectedQueue, true);
+    }
+
+    @Bean
     public Binding teamInviteSentBinding(Queue teamInviteSentQueue, TopicExchange exchange) {
         return BindingBuilder.bind(teamInviteSentQueue).to(exchange).with(teamInviteSentRoutingKey);
+    }
+
+    @Bean
+    public Binding teamInviteAcceptedBinding(Queue teamInviteAcceptedQueue, TopicExchange exchange) {
+        return BindingBuilder.bind(teamInviteAcceptedQueue).to(exchange).with(teamInviteAcceptedRoutingKey);
+    }
+
+    @Bean
+    public Binding teamInviteRejectedBinding(Queue teamInviteRejectedQueue, TopicExchange exchange) {
+        return BindingBuilder.bind(teamInviteRejectedQueue).to(exchange).with(teamInviteRejectedRoutingKey);
     }
 
     @Bean

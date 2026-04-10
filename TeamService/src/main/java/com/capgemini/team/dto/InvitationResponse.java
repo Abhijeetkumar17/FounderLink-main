@@ -18,5 +18,6 @@ public class InvitationResponse {
     private Long invitedUserId;
     private TeamRole role;
     private InvitationStatus status;
+    private String description;
     private LocalDateTime createdAt;
 }

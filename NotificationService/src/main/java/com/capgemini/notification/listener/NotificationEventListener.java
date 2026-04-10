@@ -3,9 +3,13 @@ package com.capgemini.notification.listener;
 import com.capgemini.notification.enums.NotificationType;
 import com.capgemini.notification.event.InvestmentApprovedEvent;
 import com.capgemini.notification.event.InvestmentCreatedEvent;
+import com.capgemini.notification.event.StartupApprovedEvent;
 import com.capgemini.notification.event.StartupCreatedEvent;
 import com.capgemini.notification.event.StartupRejectedEvent;
+import com.capgemini.notification.event.TeamInviteAcceptedEvent;
+import com.capgemini.notification.event.TeamInviteRejectedEvent;
 import com.capgemini.notification.event.TeamInviteSentEvent;
+import com.capgemini.notification.service.EmailService;
 import com.capgemini.notification.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +24,28 @@ import java.util.Map;
 public class NotificationEventListener {
 
     private final NotificationService notificationService;
+    private final EmailService emailService;
+
+    @RabbitListener(queues = "${rabbitmq.queue.user-registered}")
+    public void handleUserRegistered(Map<String, Object> payload) {
+        try {
+            Long userId   = payload.get("userId") != null ? ((Number) payload.get("userId")).longValue() : null;
+            String name   = (String) payload.get("name");
+            String email  = (String) payload.get("email");
+            String role   = (String) payload.get("role");
+            log.info("Received user.registered event — userId={} email={} role={}", userId, email, role);
+
+            if (userId != null) {
+                notificationService.createNotification(
+                        userId,
+                        "Welcome to FounderLink, " + name + "! Your " + formatRole(role) + " profile has been created successfully.",
+                        NotificationType.USER_REGISTERED
+                );
+            }
+        } catch (Exception e) {
+            log.error("Failed to process user.registered event: {}", e.getMessage());
+        }
+    }
 
     @RabbitListener(queues = "${rabbitmq.queue.startup-created}")
     public void handleStartupCreated(StartupCreatedEvent event) {
@@ -28,6 +54,16 @@ public class NotificationEventListener {
                 event.getFounderId(),
                 "Your startup has been submitted for review. Startup ID: " + event.getStartupId(),
                 NotificationType.STARTUP_CREATED
+        );
+    }
+
+    @RabbitListener(queues = "${rabbitmq.queue.startup-approved}")
+    public void handleStartupApproved(StartupApprovedEvent event) {
+        log.info("Received startup approved event for startupId: {}", event.getStartupId());
+        notificationService.createNotification(
+                event.getFounderId(),
+                "Congratulations! Your startup \"" + event.getStartupName() + "\" has been approved and is now live for investors.",
+                NotificationType.STARTUP_APPROVED
         );
     }
 
@@ -71,7 +107,60 @@ public class NotificationEventListener {
         );
     }
 
+    @RabbitListener(queues = "${rabbitmq.queue.team-invite-accepted}")
+    public void handleTeamInviteAccepted(TeamInviteAcceptedEvent event) {
+        log.info("Received team invite accepted event for invitation: {}", event.getInvitationId());
+        if (event.getFounderId() != null) {
+            notificationService.createNotification(
+                    event.getFounderId(),
+                    "Your invitation to join \"" + event.getStartupName() + "\" as " + event.getRole() + " has been accepted.",
+                    NotificationType.TEAM_INVITE_ACCEPTED
+            );
+        }
+    }
+
+    @RabbitListener(queues = "${rabbitmq.queue.team-invite-rejected}")
+    public void handleTeamInviteRejected(TeamInviteRejectedEvent event) {
+        log.info("Received team invite rejected event for invitation: {}", event.getInvitationId());
+        if (event.getFounderId() != null) {
+            notificationService.createNotification(
+                    event.getFounderId(),
+                    "Your invitation to join \"" + event.getStartupName() + "\" as " + event.getRole() + " was declined.",
+                    NotificationType.TEAM_INVITE_REJECTED
+            );
+        }
+    }
+
     // Use Map<String, Object> to avoid TypeId deserialization mismatch between PaymentService and NotificationService
+    @RabbitListener(queues = "${rabbitmq.queue.payment-failed}")
+    public void handlePaymentFailed(Map<String, Object> payload) {
+        try {
+            Long investorId = payload.get("investorId") != null ? ((Number) payload.get("investorId")).longValue() : null;
+            Long founderId  = payload.get("founderId")  != null ? ((Number) payload.get("founderId")).longValue()  : null;
+            String startupName  = (String) payload.get("startupName");
+            String investorName = (String) payload.get("investorName");
+            Number amount       = payload.get("amount") != null ? (Number) payload.get("amount") : 0;
+            log.info("Received payment rejected event — investorId={} founderId={} startup={}", investorId, founderId, startupName);
+
+            if (investorId != null) {
+                notificationService.createNotification(
+                        investorId,
+                        "Your investment of ₹" + amount.longValue() + " in " + startupName + " was rejected by the founder. A refund has been initiated to your account.",
+                        NotificationType.PAYMENT_REJECTED
+                );
+            }
+            if (founderId != null) {
+                notificationService.createNotification(
+                        founderId,
+                        "You rejected the investment of ₹" + amount.longValue() + " from " + investorName + " for " + startupName + ". A refund has been issued to the investor.",
+                        NotificationType.PAYMENT_REJECTED
+                );
+            }
+        } catch (Exception e) {
+            log.error("Failed to process payment rejected event: {}", e.getMessage());
+        }
+    }
+
     @RabbitListener(queues = "${rabbitmq.queue.payment-success}")
     public void handlePaymentSuccess(Map<String, Object> payload) {
         try {
@@ -99,5 +188,14 @@ public class NotificationEventListener {
         } catch (Exception e) {
             log.error("Failed to process payment success event: {}", e.getMessage());
         }
+    }
+
+    private String formatRole(String role) {
+        return switch (role) {
+            case "ROLE_FOUNDER"   -> "Founder";
+            case "ROLE_INVESTOR"  -> "Investor";
+            case "ROLE_COFOUNDER" -> "Co-Founder";
+            default               -> "member";
+        };
     }
 }

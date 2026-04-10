@@ -9,4 +9,5 @@ import com.capgemini.startup.entity.StartupFollower;
 public interface StartupFollowerRepository extends JpaRepository<StartupFollower, Long> {
 
     boolean existsByStartupIdAndInvestorId(Long startupId, Long investorId);
+    void deleteByStartupIdAndInvestorId(Long startupId, Long investorId);
 }

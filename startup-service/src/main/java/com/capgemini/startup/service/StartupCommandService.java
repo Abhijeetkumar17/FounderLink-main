@@ -8,6 +8,7 @@ public interface StartupCommandService {
     StartupResponse updateStartup(Long id, Long founderId, StartupRequest request);
     void deleteStartup(Long id, Long userId, boolean isAdmin);
     void followStartup(Long startupId, Long investorId);
+    void unfollowStartup(Long startupId, Long investorId);
     StartupResponse approveStartup(Long id);
     StartupResponse rejectStartup(Long id);
 }

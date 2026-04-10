@@ -33,7 +33,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         if (userIdHeader != null && rolesHeader != null && !rolesHeader.isBlank()) {
             Long userId = Long.parseLong(userIdHeader);
             List<SimpleGrantedAuthority> authorities = Arrays.stream(rolesHeader.split(","))
-                    .map(role -> new SimpleGrantedAuthority(role.trim()))
+                    .map(role -> role.trim().startsWith("ROLE_") ? role.trim() : "ROLE_" + role.trim())
+                    .map(SimpleGrantedAuthority::new)
                     .filter(a -> !a.getAuthority().isBlank())
                     .toList();
             UsernamePasswordAuthenticationToken authentication =

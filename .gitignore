@@ -21,9 +21,25 @@ founderlink-frontend/build/
 # Root .env has DB passwords - DO NOT commit
 .env
 
-# Logs
+# Logs & JVM crash dumps
 *.log
 **/logs/
+hs_err_pid*
+replay_pid*
+
+# Temp/debug files
+*.tmp
+*.bak
+*.orig
+*.swp
+*_errors.txt
+*_errors.log
+dump.txt
+build_error.txt
+compile_errors.txt
+out_logs.txt
+scaffold_out.txt
+all_plans.txt
 
 # Misc
 *.resolved

@@ -9,6 +9,8 @@ import com.capgemini.team.dto.InvitationRequest;
 import com.capgemini.team.dto.InvitationResponse;
 import com.capgemini.team.dto.RoleUpdateRequest;
 import com.capgemini.team.dto.TeamMemberResponse;
+import com.capgemini.team.dto.TeamInviteAcceptedEvent;
+import com.capgemini.team.dto.TeamInviteRejectedEvent;
 import com.capgemini.team.entity.TeamInvitation;
 import com.capgemini.team.entity.TeamMember;
 import com.capgemini.team.enums.InvitationStatus;
@@ -22,6 +24,7 @@ import com.capgemini.team.exception.ServiceUnavailableException;
 import com.capgemini.team.exception.UnauthorizedException;
 import com.capgemini.team.feign.StartupClient;
 import com.capgemini.team.feign.StartupDTO;
+import com.capgemini.team.mapper.TeamMapper;
 import com.capgemini.team.repository.TeamInvitationRepository;
 import com.capgemini.team.repository.TeamMemberRepository;
 
@@ -42,6 +45,7 @@ public class TeamService implements TeamCommandService, TeamQueryService {
     private final StartupClient startupClient;
     private final EventPublisher eventPublisher;
     private final CircuitBreakerFactory<?, ?> circuitBreakerFactory;
+    private final TeamMapper teamMapper;
 
     private StartupDTO fetchStartup(Long startupId) {
         return circuitBreakerFactory.create("startup-service").run(
@@ -101,6 +105,7 @@ public class TeamService implements TeamCommandService, TeamQueryService {
                 .invitedUserId(request.getInvitedUserId())
                 .role(request.getRole())
                 .status(InvitationStatus.PENDING)
+                .description(request.getDescription())
                 .build();
 
         invitation = invitationRepository.save(invitation);
@@ -115,7 +120,7 @@ public class TeamService implements TeamCommandService, TeamQueryService {
         log.info("Team invitation sent: id={}, startupId={}, invitedUserId={}",
                 invitation.getId(), invitation.getStartupId(), invitation.getInvitedUserId());
 
-        return mapToInvitationResponse(invitation);
+        return teamMapper.toInvitationResponse(invitation);
     }
 
     @Override
@@ -149,7 +154,21 @@ public class TeamService implements TeamCommandService, TeamQueryService {
 
         log.info("Team invitation accepted: invitationId={}, userId={}", invitationId, userId);
 
-        return mapToMemberResponse(member);
+        try {
+            StartupDTO startup = fetchStartup(invitation.getStartupId());
+            eventPublisher.publishTeamInviteAccepted(TeamInviteAcceptedEvent.builder()
+                    .invitationId(invitationId)
+                    .startupId(invitation.getStartupId())
+                    .startupName(startup != null ? startup.getName() : "Your Startup")
+                    .invitedUserId(userId)
+                    .founderId(startup != null ? startup.getFounderId() : null)
+                    .role(invitation.getRole().name())
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to publish team invite accepted event: {}", e.getMessage());
+        }
+
+        return teamMapper.toMemberResponse(member);
     }
 
     @Override
@@ -172,7 +191,21 @@ public class TeamService implements TeamCommandService, TeamQueryService {
 
         log.info("Team invitation rejected: invitationId={}, userId={}", invitationId, userId);
 
-        return mapToInvitationResponse(invitation);
+        try {
+            StartupDTO startup = fetchStartup(invitation.getStartupId());
+            eventPublisher.publishTeamInviteRejected(TeamInviteRejectedEvent.builder()
+                    .invitationId(invitationId)
+                    .startupId(invitation.getStartupId())
+                    .startupName(startup != null ? startup.getName() : "Your Startup")
+                    .invitedUserId(userId)
+                    .founderId(startup != null ? startup.getFounderId() : null)
+                    .role(invitation.getRole().name())
+                    .build());
+        } catch (Exception e) {
+            log.error("Failed to publish team invite rejected event: {}", e.getMessage());
+        }
+
+        return teamMapper.toInvitationResponse(invitation);
     }
 
     @Override
@@ -192,7 +225,7 @@ public class TeamService implements TeamCommandService, TeamQueryService {
             }
         }
         return memberRepository.findByStartupId(startupId).stream()
-                .map(this::mapToMemberResponse)
+                .map(teamMapper::toMemberResponse)
                 .collect(java.util.stream.Collectors.toList());
     }
 
@@ -200,13 +233,16 @@ public class TeamService implements TeamCommandService, TeamQueryService {
     @Cacheable(value = "teamInvitations", key = "#userId")
     public List<InvitationResponse> getMyInvitations(Long userId) {
         return invitationRepository.findByInvitedUserIdOrderByCreatedAtDesc(userId).stream()
-                .map(this::mapToInvitationResponse)
+                .map(teamMapper::toInvitationResponse)
                 .collect(java.util.stream.Collectors.toList());
     }
 
     @Override
     @Transactional
-    @CacheEvict(value = "teamMembers", allEntries = true)
+    @Caching(evict = {
+        @CacheEvict(value = "teamMembers", allEntries = true),
+        @CacheEvict(value = "teamInvitations", allEntries = true)
+    })
     public TeamMemberResponse updateMemberRole(Long memberId, RoleUpdateRequest request, Long founderId) {
         TeamMember member = memberRepository.findById(memberId)
                 .orElseThrow(() -> new ResourceNotFoundException("Team member not found with id: " + memberId));
@@ -219,29 +255,17 @@ public class TeamService implements TeamCommandService, TeamQueryService {
         member.setRole(request.getRole());
         member = memberRepository.save(member);
 
+        // Sync the role on the accepted invitation so the Co-founder dashboard reflects the new role
+        invitationRepository.findByStartupIdAndInvitedUserIdAndStatus(
+                member.getStartupId(), member.getUserId(), InvitationStatus.ACCEPTED
+        ).ifPresent(invitation -> {
+            invitation.setRole(request.getRole());
+            invitationRepository.save(invitation);
+        });
+
         log.info("Team member role updated: memberId={}, newRole={}", memberId, request.getRole());
 
-        return mapToMemberResponse(member);
+        return teamMapper.toMemberResponse(member);
     }
 
-    private InvitationResponse mapToInvitationResponse(TeamInvitation invitation) {
-        return InvitationResponse.builder()
-                .id(invitation.getId())
-                .startupId(invitation.getStartupId())
-                .invitedUserId(invitation.getInvitedUserId())
-                .role(invitation.getRole())
-                .status(invitation.getStatus())
-                .createdAt(invitation.getCreatedAt())
-                .build();
-    }
-
-    private TeamMemberResponse mapToMemberResponse(TeamMember member) {
-        return TeamMemberResponse.builder()
-                .id(member.getId())
-                .startupId(member.getStartupId())
-                .userId(member.getUserId())
-                .role(member.getRole())
-                .joinedAt(member.getJoinedAt())
-                .build();
-    }
 }

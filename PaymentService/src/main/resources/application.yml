@@ -24,8 +24,8 @@ spring:
   mail:
     host: smtp.gmail.com
     port: 587
-    username: ${SPRING_MAIL_USERNAME:snehals0203@gmail.com}
-    password: ${SPRING_MAIL_PASSWORD:uzte iyhv uryb mhdh}
+    username: ${SPRING_MAIL_USERNAME:abhijeetsinha2017@gmail.com}
+    password: ${SPRING_MAIL_PASSWORD:bpxd jbqx qqiy yfsr}
     properties:
       mail:
         smtp:
@@ -41,8 +41,8 @@ eureka:
     prefer-ip-address: true
 
 razorpay:
-  key-id: ${RAZORPAY_KEY_ID:rzp_test_SVoYe0oLVVgMeE}
-  key-secret: ${RAZORPAY_KEY_SECRET:QjpLmGe510u7BIEma6FAt7fb}
+  key-id: ${RAZORPAY_KEY_ID:rzp_test_SYVw7OldSthWNI}
+  key-secret: ${RAZORPAY_KEY_SECRET:n3JDzzitMyu181FFJ4oR3GnF}
 
 management:
   endpoints:
@@ -61,3 +61,8 @@ management:
   zipkin:
     tracing:
       endpoint: http://zipkin:9411/api/v2/spans
+
+jwt:
+  secret: 5367566B59703373367639792F423F4528482B4D6251655468576D5A71347437
+  access-token-expiration: 86400000
+  refresh-token-expiration: 604800000

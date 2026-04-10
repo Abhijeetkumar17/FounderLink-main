@@ -34,6 +34,9 @@ public class TeamInvitation {
     @Column(nullable = false)
     private InvitationStatus status;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

@@ -19,4 +19,6 @@ public class InvitationRequest {
 
     @NotNull(message = "Role is required")
     private TeamRole role;
+
+    private String description;
 }

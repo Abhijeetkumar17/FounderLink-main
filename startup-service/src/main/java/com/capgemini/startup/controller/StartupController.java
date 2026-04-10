@@ -22,7 +22,8 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/startups")
-public class StartupController {
+public class
+StartupController {
 
     private final StartupCommandService startupCommandService;
     private final StartupQueryService startupQueryService;
@@ -33,7 +34,7 @@ public class StartupController {
     }
 
     @PostMapping
-    @PreAuthorize("hasAuthority('ROLE_FOUNDER')")
+    @PreAuthorize("hasRole('FOUNDER')")
     public ResponseEntity<StartupResponse> createStartup(
             Authentication authentication,
             @Valid @RequestBody StartupRequest request) {
@@ -113,7 +114,7 @@ public class StartupController {
     }
 
     @PostMapping("/{id}/follow")
-    @PreAuthorize("hasAuthority('ROLE_INVESTOR')")
+    @PreAuthorize("hasRole('INVESTOR')")
     public ResponseEntity<Map<String, String>> followStartup(
             @PathVariable Long id,
             Authentication authentication) {
@@ -122,16 +123,36 @@ public class StartupController {
         startupCommandService.followStartup(id, investorId);
         return new ResponseEntity<>(Map.of("message", "Startup followed successfully"), HttpStatus.OK);
     }
+    @PostMapping("/{id}/unfollow")
+    @PreAuthorize("hasRole('INVESTOR')")
+    public ResponseEntity<Map<String, String>> unfollowStartup(
+            @PathVariable Long id,
+            Authentication authentication) {
 
+        Long investorId = Long.parseLong(authentication.getName());
+        startupCommandService.unfollowStartup(id, investorId);
+        return new ResponseEntity<>(Map.of("message", "Startup unfollowed successfully"), HttpStatus.OK);
+    }
     @PutMapping("/{id}/approve")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StartupResponse> approveStartup(@PathVariable Long id) {
         StartupResponse response = startupCommandService.approveStartup(id);
         return ResponseEntity.ok(response);
     }
 
+    @GetMapping("/{id}/is-following")
+    @PreAuthorize("hasRole('INVESTOR')")
+    public ResponseEntity<Boolean> isFollowing(
+            @PathVariable Long id,
+            Authentication authentication) {
+
+        Long investorId = Long.parseLong(authentication.getName());
+        boolean isFollowing = startupQueryService.isInvestorFollowing(id, investorId);
+        return ResponseEntity.ok(isFollowing);
+    }
+
     @PutMapping("/{id}/reject")
-    @PreAuthorize("hasAuthority('ROLE_ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<StartupResponse> rejectStartup(@PathVariable Long id) {
         StartupResponse response = startupCommandService.rejectStartup(id);
         return ResponseEntity.ok(response);
